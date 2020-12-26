@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share/share.dart';import 'package:open_file/open_file.dart';
+import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 
 
 void main() {
@@ -73,6 +74,10 @@ class _MyHomePageState extends State<MyHomePage> {
     final directory = await getExternalStorageDirectory();
     return directory.path;
   }
+  Future<String> get _tempPath async {
+    final directory = await getTemporaryDirectory();
+    return directory.path;
+  }
   String get _rootPath {
     return '/storage/emulated/0';
   }
@@ -96,6 +101,79 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     return res;
   }
+
+  void onDownload() {
+    if (fileTypeId == 1 || fileTypeId == 2){
+      _downloadAudio();
+    } else if (fileTypeId == 3){
+      _downloadVideo();
+    } else {
+      _showError();
+    }
+  }
+
+  Future<void> _downloadVideo() async{
+    try{
+    storagePermission();
+    var path = _rootPath;
+    inputs = _cleanURL(inputs);
+    setState(() {
+      res = 'Starting...';
+      isProgressing = true;
+      thumbnailPath = 'https://img.youtube.com/vi/$inputs/0.jpg';
+    });
+    setRes('Loading Video Info...');
+    var manifest = await yt.videos.streamsClient.getManifest('$inputs');
+    setRes('Get Metadata...');
+    var streamInfo = manifest.muxed.withHighestBitrate();
+    
+    if (streamInfo != null) {
+      setRes('Get the actual stream...');
+      var stream = yt.videos.streamsClient.get(streamInfo);
+      
+      setRes('Creating a file...');
+      var file = File('$customPath/$fileName${fileType[fileTypeId]}');
+      var fileStream = file.openWrite();
+      setRes('Writing on the file...');
+      // Pipe all the content of the stream into the file.
+      await stream.pipe(fileStream);
+
+      // Close the file.
+      await fileStream.flush();
+      setRes('Closing the file...');
+      await fileStream.close();
+    }
+    var myDir = new Directory(await _localPath);
+    myDir.list(recursive: true, followLinks: false)
+    .listen((FileSystemEntity entity) {
+      print('My Log: ${entity.path}');
+    });
+
+    var file = File('$customPath/$fileName${fileType[fileTypeId]}');
+    print('My Log: ${file.lengthSync()}');
+    print('My Log: Here is Video!!!!!');
+    setState(() {
+      res = 'Done!';
+      _counter++;
+      isProgressing = false;
+    });}
+    catch(e){
+      setRes('Error');
+      setState(() {
+      isProgressing = false;
+      });
+      showDialog(context: context, builder: (BuildContext context){
+      return CupertinoAlertDialog(
+        title: Text('Error', style: TextStyle(color: Colors.red),),
+        content: Text('$e\n앱을 재실행 해주세요!'),
+        actions: [
+          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
+        ],
+      );
+    });
+    }
+  }
+  
   Future<void> _downloadAudio() async {
     try{
     // var path = await _localPath;
@@ -149,13 +227,18 @@ class _MyHomePageState extends State<MyHomePage> {
       showDialog(context: context, builder: (BuildContext context){
       return CupertinoAlertDialog(
         title: Text('Error', style: TextStyle(color: Colors.red),),
-        content: Text('$e'),
+        content: Text('$e\n앱을 재실행 해주세요!'),
         actions: [
-          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('close'))
+          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
         ],
       );
     });
     }
+  }
+  void _m4a2mp3(String inputPath, String outputPath){
+    final FlutterFFmpeg _flutterFFmpeg = new FlutterFFmpeg();
+    String _args = '-i $inputPath $outputPath';
+    _flutterFFmpeg.execute('$_args');
   }
   Future<void> _fileTest() async{
     storagePermission();
@@ -260,9 +343,9 @@ class _MyHomePageState extends State<MyHomePage> {
     showDialog(context: context, builder: (BuildContext context){
       return CupertinoAlertDialog(
         title: Text('Error', style: TextStyle(color: Colors.red),),
-        content: Text('에러가 발생했습니다. 앱을 재실행 해주세요'),
+        content: Text('에러가 발생했습니다.\n모든 칸을 채웠는지 확인해 주시고\n그래도 문제가 있다면 앱을 재실행 해주세요!'),
         actions: [
-          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('close'))
+          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
         ],
       );
     });
@@ -395,7 +478,7 @@ class _MyHomePageState extends State<MyHomePage> {
             Container(
               width: fullw,
               child: CupertinoButton(
-              onPressed: isProgressing? _showError:_downloadAudio,
+              onPressed: isProgressing? _showError:onDownload,
               color: Colors.orange,
               borderRadius: BorderRadius.circular(30.0),
               child: Center(child: Row(

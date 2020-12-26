@@ -35,6 +35,7 @@ dependencies:
   share: ^0.6.5+4
   open_file: ^3.0.3
   integration_test: any
+  flutter_ffmpeg: ^0.3.0
 
 dev_dependencies:
   flutter_test:
