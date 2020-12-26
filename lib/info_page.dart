@@ -13,7 +13,9 @@ class InfoPage extends StatelessWidget {
   static get ver => '1.0.0';
   var desc = '''
 Version: $ver
-Date: 2020-12-16
+Developer: 크로스플랫폼주의자
+Icon: 스님(김태민)
+Date: 2020-12-30
 Flutter: 1.26.0-2.0.pre.134
 OS: $getOSinfo
   ''';
@@ -30,7 +32,7 @@ OS: $getOSinfo
       ),
       body: SingleChildScrollView(
         child: Column(children: [
-            //Image.asset('icon.png', height: 300,),
+            Image.asset('assets/icon-nobg.png', height: 300,),
             Container(
               padding: EdgeInsets.fromLTRB(empty,10,empty,0),
               child: Column(
@@ -45,9 +47,6 @@ OS: $getOSinfo
             ),
 
             ),
-            
-
-            
             
           ],)
 

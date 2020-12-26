@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:youtube_download/history.dart';
+import 'package:youtube_download/history_page.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -8,6 +10,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share/share.dart';import 'package:open_file/open_file.dart';
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 import 'info_page.dart';
+import 'package:intl/intl.dart';
+import 'dart:convert';
 
 
 void main() {
@@ -65,7 +69,8 @@ class _MyHomePageState extends State<MyHomePage> {
   var fileType = ['.파일형식', '.m4a', '.mp3', '.mp4']; 
   var isProgressing = false;
   var customPath = '/storage/emulated/0';
-  var thumbnailPath = 'https://logos-world.net/wp-content/uploads/2020/04/YouTube-Emblem.png';
+  var thumbnailPath = 'https://cdn.discordapp.com/attachments/791356171067457577/792336665040519178/1b6c0cc6e94fddd2.png';
+  var videoTitle = '영상제목';
 
   Future<String> get _localPath async {
     final directory = await getApplicationDocumentsDirectory();
@@ -143,6 +148,7 @@ class _MyHomePageState extends State<MyHomePage> {
       await fileStream.flush();
       setRes('Closing the file...');
       await fileStream.close();
+
     }
     var myDir = new Directory(await _localPath);
     myDir.list(recursive: true, followLinks: false)
@@ -153,6 +159,14 @@ class _MyHomePageState extends State<MyHomePage> {
     var file = File('$customPath/$fileName${fileType[fileTypeId]}');
     print('My Log: ${file.lengthSync()}');
     print('My Log: Here is Video!!!!!');
+
+    setRes('Writing history');
+    initHistory();
+    var now = new DateTime.now();
+    var formatter = new DateFormat('yyyy-MM-dd');
+    String date = formatter.format(now);
+    writeHistory('$inputs', '$thumbnailPath', '$date', '${file.lengthSync()}', '$customPath/$fileName${fileType[fileTypeId]}');
+
     setState(() {
       res = 'Done!';
       _counter++;
@@ -215,6 +229,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
     var file = File('$customPath/$fileName${fileType[fileTypeId]}');
     print('My Log: ${file.lengthSync()}');
+
+    setRes('Writing history');
+    initHistory();
+    var now = new DateTime.now();
+    var formatter = new DateFormat('yyyy-MM-dd');
+    String date = formatter.format(now);
+    writeHistory('$inputs', '$thumbnailPath', '$date', '${file.lengthSync()}', '$customPath/$fileName${fileType[fileTypeId]}');
     setState(() {
       res = 'Done!';
       _counter++;
@@ -276,6 +297,27 @@ class _MyHomePageState extends State<MyHomePage> {
   }
   void goOpen(){
     OpenFile.open('$customPath/$fileName${fileType[fileTypeId]}');
+  }
+  void initHistory() async {
+    var localPath = await _localPath;
+    final path = '$localPath/history.json';
+    if(FileSystemEntity.typeSync('$path') == FileSystemEntityType.notFound){
+      var file = File('$path');
+      file.writeAsStringSync('[]');
+    }
+    
+  }
+  
+  void writeHistory(String id,String thumbNail, String date, String size, String path) async {
+    var localPath = await _localPath;
+    final path = '$localPath/history.json';
+    var file = File('$path');
+    var newDesc = History(id: '$id', thumbNail: '$thumbnailPath', date: '$date', size: '$size', path: '$path');
+    var priorDesc = file.readAsStringSync();
+    List jsonData = jsonDecode('$priorDesc');
+    jsonData.add(jsonEncode(newDesc.toMap()));
+    file.writeAsStringSync('$jsonData');
+
   }
   showPicker(){
     showModalBottomSheet(
@@ -473,6 +515,9 @@ class _MyHomePageState extends State<MyHomePage> {
               '저장경로: $customPath/$fileName${fileType[fileTypeId]}'.replaceAll('$_rootPath', 'Root'),
             ),
             Text(
+              '영상제목: $videoTitle'
+            ),
+            Text(
               '$res',
               style: TextStyle(fontSize: 30),
             ),
@@ -537,26 +582,59 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
 
             Padding(padding: EdgeInsets.all(10)),
-            Container(
-              width: fullw,
-              child: CupertinoButton(
-                onPressed: () {
-                  Navigator.push(context, CupertinoPageRoute(builder: (BuildContext context) {
-                    return InfoPage();
-                  }));
-                },
-                color: Colors.orange,
-                borderRadius: BorderRadius.circular(30.0),
-                padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
-                child: Center(
-                  child: Row(
-                  children: [
-                    Icon(CupertinoIcons.info, color: Colors.white,),
-                    Text(' 정보 보기', style: TextStyle(color: Colors.white))
-                  ],
+            Row(
+              
+              children: <Widget>[
+                Padding(padding: EdgeInsets.fromLTRB((med.size.width)*0.05, 0, 0, 0)),
+                Container(
+                  width: fullw*0.45,
+                  child: CupertinoButton(
+                    onPressed: () {
+                      Navigator.push(context, CupertinoPageRoute(builder: (BuildContext context) {
+                        return HistoryPage();
+                      }));
+                    },
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(30.0),
+                    padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                    child: Center(
+                      child: Row(
+                      children: [
+                        Icon(CupertinoIcons.bars, color: Colors.white,),
+                        Text(' 기록 보기', style: TextStyle(color: Colors.white))
+                      ],
+                      ),
                   ),
+                )
+                ),
+                Padding(padding: EdgeInsets.all(fullw*0.05)),
+                Container(
+                  width: fullw*0.45,
+                  child: CupertinoButton(
+                    onPressed: () {
+                      Navigator.push(context, CupertinoPageRoute(builder: (BuildContext context) {
+                        return InfoPage();
+                      }));
+                    },
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(30.0),
+                    padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                    child: Center(
+                      child: Row(
+                      children: [
+                        Icon(CupertinoIcons.info, color: Colors.white,),
+                        Text(' 정보 보기', style: TextStyle(color: Colors.white))
+                      ],
+                      ),
+                  ),
+                )),
+                
+              ],
+            ),
+            
+            Padding(
+              padding: EdgeInsets.all(20)
               ),
-            )),
           ],
         ),
       ),
