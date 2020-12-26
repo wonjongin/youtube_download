@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share/share.dart';import 'package:open_file/open_file.dart';
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
+import 'info_page.dart';
 
 
 void main() {
@@ -481,9 +482,11 @@ class _MyHomePageState extends State<MyHomePage> {
               onPressed: isProgressing? _showError:onDownload,
               color: Colors.orange,
               borderRadius: BorderRadius.circular(30.0),
+              padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Center(child: Row(
                 children: <Widget>[
                 Icon(CupertinoIcons.cloud_download, color: Colors.white,),
+                
                 Text(" 다운로드", textAlign: TextAlign.center,style: TextStyle(color: Colors.white),),
                 ]
               ))
@@ -532,7 +535,28 @@ class _MyHomePageState extends State<MyHomePage> {
             ),),]
             
             ),
-            
+
+            Padding(padding: EdgeInsets.all(10)),
+            Container(
+              width: fullw,
+              child: CupertinoButton(
+                onPressed: () {
+                  Navigator.push(context, CupertinoPageRoute(builder: (BuildContext context) {
+                    return InfoPage();
+                  }));
+                },
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(30.0),
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                child: Center(
+                  child: Row(
+                  children: [
+                    Icon(CupertinoIcons.info, color: Colors.white,),
+                    Text(' 정보 보기', style: TextStyle(color: Colors.white))
+                  ],
+                  ),
+              ),
+            )),
           ],
         ),
       ),
