@@ -13,7 +13,7 @@ class InfoPage extends StatelessWidget {
   static get ver => '1.0.0';
   var desc = '''
 Version: $ver
-Developer: 크로스플랫폼주의자
+Developer: 크로스플랫폼 주의자
 Icon: 스님(김태민)
 Date: 2020-12-30
 Flutter: 1.26.0-2.0.pre.134

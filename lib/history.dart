@@ -14,12 +14,12 @@ class History {
     this.size,
     this.path,
   });
-  History.formMap(Map<String, dynamic> map){
-    id = map['id'];
-    thumbNail = map['thumbNail'];
-    date = map['date'];
-    size = map['size'];
-    path = map['path'];
+  History.fromMap(Map<String, dynamic> map){
+    this.id = map['id'];
+    this.thumbNail = map['thumbNail'];
+    this.date = map['date'];
+    this.size = map['size'];
+    this.path = map['path'];
   }
   Map<String, dynamic> toMap() {
     final Map<String, dynamic> data = new Map<String, dynamic>();

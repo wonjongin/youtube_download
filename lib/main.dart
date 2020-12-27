@@ -7,11 +7,13 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share/share.dart';import 'package:open_file/open_file.dart';
+import 'package:share/share.dart';
+import 'package:open_file/open_file.dart';
 import 'package:flutter_ffmpeg/flutter_ffmpeg.dart';
 import 'info_page.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
+import 'package:flutter_statusbarcolor/flutter_statusbarcolor.dart';
 
 
 void main() {
@@ -299,7 +301,7 @@ class _MyHomePageState extends State<MyHomePage> {
     OpenFile.open('$customPath/$fileName${fileType[fileTypeId]}');
   }
   void initHistory() async {
-    var localPath = await _localPath;
+    var localPath = await _externalPath;
     final path = '$localPath/history.json';
     if(FileSystemEntity.typeSync('$path') == FileSystemEntityType.notFound){
       var file = File('$path');
@@ -309,15 +311,16 @@ class _MyHomePageState extends State<MyHomePage> {
   }
   
   void writeHistory(String id,String thumbNail, String date, String size, String path) async {
-    var localPath = await _localPath;
-    final path = '$localPath/history.json';
-    var file = File('$path');
+    initHistory();
+    var externalPath = await _externalPath;
+    final historyPath = '$externalPath/history.json';
+    var file = File('$historyPath');
     var newDesc = History(id: '$id', thumbNail: '$thumbnailPath', date: '$date', size: '$size', path: '$path');
     var priorDesc = file.readAsStringSync();
     List jsonData = jsonDecode('$priorDesc');
-    jsonData.add(jsonEncode(newDesc.toMap()));
-    file.writeAsStringSync('$jsonData');
-
+    jsonData.add(newDesc.toMap());
+    var finalData = jsonEncode(jsonData);
+    file.writeAsStringSync('$finalData');
   }
   showPicker(){
     showModalBottomSheet(
@@ -404,6 +407,7 @@ class _MyHomePageState extends State<MyHomePage> {
     // than having to individually change instances of widgets.
     final med = MediaQuery.of(context);
     var fullw = (med.size.width)*0.9;
+    FlutterStatusbarcolor.setStatusBarColor(Color.fromRGBO(250, 250, 250, 1));
     return Scaffold(
       appBar: CupertinoNavigationBar(
         // Here we take the value from the MyHomePage object that was created by
@@ -512,7 +516,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             )),
             Text(
-              '저장경로: $customPath/$fileName${fileType[fileTypeId]}'.replaceAll('$_rootPath', 'Root'),
+              '저장경로: $customPath/$fileName${fileType[fileTypeId]}'.replaceAll('$_rootPath', ''),
             ),
             Text(
               '영상제목: $videoTitle'

@@ -38,6 +38,7 @@ dependencies:
   flutter_ffmpeg: ^0.3.0
   flutter_launcher_icons: ^0.7.3
   intl: ^0.16.1
+  flutter_statusbarcolor: ^0.2.3
 
 flutter_icons:
   android: true
