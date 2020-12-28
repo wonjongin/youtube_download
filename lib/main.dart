@@ -5,6 +5,7 @@ import 'package:youtube_download/history_page.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'dart:core';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share/share.dart';
@@ -14,6 +15,8 @@ import 'info_page.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:flutter_statusbarcolor/flutter_statusbarcolor.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import 'dart:async';
 
 
 void main() {
@@ -66,13 +69,17 @@ class _MyHomePageState extends State<MyHomePage> {
   String inputs = '';
   String res = '';
   var yt = YoutubeExplode();
-  var fileName = 'default';
+  var fileName = '파일이름';
   var fileTypeId = 0;
   var fileType = ['.파일형식', '.m4a', '.mp3', '.mp4']; 
   var isProgressing = false;
   var customPath = '/storage/emulated/0';
   var thumbnailPath = 'https://cdn.discordapp.com/attachments/791356171067457577/792336665040519178/1b6c0cc6e94fddd2.png';
   var videoTitle = '영상제목';
+  FileSize size;
+  double percent= 0 ;
+  Timer _timer;
+  bool isAudioOnly;
 
   Future<String> get _localPath async {
     final directory = await getApplicationDocumentsDirectory();
@@ -111,47 +118,103 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void onDownload() {
-    if (fileTypeId == 1 || fileTypeId == 2){
-      _downloadAudio();
-    } else if (fileTypeId == 3){
-      _downloadVideo();
+
+    bool fileExist = File('$customPath/$fileName${fileType[fileTypeId]}').existsSync();
+    if(fileExist){
+      showDialog(context: context, builder: (BuildContext context){
+      return CupertinoAlertDialog(
+        title: Text('파일이 존재해요!', style: TextStyle(color: Colors.red),),
+        content: Text('같은 이름의 파일이 이미 존재해요.\n덮어 씌울까요?'),
+        actions: [
+          FlatButton(onPressed:(){
+             Navigator.pop(context);
+            if (fileTypeId == 1 || fileTypeId == 2){
+              isAudioOnly = true;
+              _downloadMedia();
+            } else if (fileTypeId == 3){
+              isAudioOnly = false;
+              _downloadMedia();
+            } else {
+              _showError();
+            }
+          } , child: Text('예')),
+          FlatButton(onPressed:(){ Navigator.pop(context);}, child: Text('아니오'))
+        ],
+      );
+    });
     } else {
-      _showError();
+      if (fileTypeId == 1 || fileTypeId == 2){
+        isAudioOnly = true;
+        _downloadMedia();
+      } else if (fileTypeId == 3){
+        isAudioOnly = false;
+        _downloadMedia();
+      } else {
+        _showError();
+      }
     }
   }
 
-  Future<void> _downloadVideo() async{
+  Future<void> _downloadMedia() async{
     try{
     storagePermission();
     var path = _rootPath;
     inputs = _cleanURL(inputs);
     setState(() {
+      percent = 0;
       res = 'Starting...';
       isProgressing = true;
       thumbnailPath = 'https://img.youtube.com/vi/$inputs/0.jpg';
     });
+    
+    
+ 
+    File('$customPath/$fileName${fileType[fileTypeId]}').delete();
     setRes('Loading Video Info...');
     var manifest = await yt.videos.streamsClient.getManifest('$inputs');
     setRes('Get Metadata...');
-    var streamInfo = manifest.muxed.withHighestBitrate();
-    
-    if (streamInfo != null) {
-      setRes('Get the actual stream...');
-      var stream = yt.videos.streamsClient.get(streamInfo);
+    var availableBitrate = manifest.videoOnly.sortByVideoQuality();
+    print(availableBitrate);
+    // var streamInfo = manifest.muxed.withHighestBitrate();
+    var streamInfo;
+    if (isAudioOnly){
+      streamInfo = manifest.audioOnly.withHighestBitrate();
+      size = streamInfo.size;
+      writeStream(streamInfo, '$customPath/$fileName${fileType[fileTypeId]}');
+    } else {
+      var streamInfoVideo = manifest.videoOnly.elementAt(0);
+      var streamInfoAudio = manifest.audioOnly.withHighestBitrate();
+      FileSize audioSize = streamInfoAudio.size;
+      FileSize videoSize = streamInfoVideo.size;
+      size = FileSize((audioSize.totalBytes + videoSize.totalBytes)*2) ;
+      var tempPath = await _externalPath;
+      var tempDir = new Directory(tempPath);
+      tempDir.list(recursive: true, followLinks: false).listen((FileSystemEntity entity) {
+        var pathList = (entity.path).split('/');
+        var title = pathList[pathList.length -1];
+        if((title.endsWith('.mp4')&&title!='$fileName.mp4')||(title.endsWith('.m4a')&&title!='$fileName.m4a')){
+          entity.delete();
+          print('MyLog: Delete file');
+        }
+      });
+
+      new File('$tempPath/$fileName.mp4').create(recursive: true);
+      print('MyLog: Create file');
+      new File('$tempPath/$fileName.m4a').create(recursive: true);
+      print('MyLog: Create file');
+      new File('$customPath/$fileName${fileType[fileTypeId]}').create(recursive: true);
+      print('MyLog: Create file');
+      await writeStream(streamInfoVideo, '$tempPath/$fileName.mp4');
+      print('MyLog: Video Dl complete!');
+      await writeStream(streamInfoAudio, '$tempPath/$fileName.m4a');
+      print('MyLog: Audio Dl complete!');
+      setRes('Combine...');
+      await _combineMP4andM4A('$tempPath/$fileName.m4a', '$tempPath/$fileName.mp4', '$customPath/$fileName${fileType[fileTypeId]}');
       
-      setRes('Creating a file...');
-      var file = File('$customPath/$fileName${fileType[fileTypeId]}');
-      var fileStream = file.openWrite();
-      setRes('Writing on the file...');
-      // Pipe all the content of the stream into the file.
-      await stream.pipe(fileStream);
-
-      // Close the file.
-      await fileStream.flush();
-      setRes('Closing the file...');
-      await fileStream.close();
-
     }
+   
+    
+    
     var myDir = new Directory(await _localPath);
     myDir.list(recursive: true, followLinks: false)
     .listen((FileSystemEntity entity) {
@@ -162,22 +225,31 @@ class _MyHomePageState extends State<MyHomePage> {
     print('My Log: ${file.lengthSync()}');
     print('My Log: Here is Video!!!!!');
 
-    setRes('Writing history');
+    setRes('Writing...');
     initHistory();
     var now = new DateTime.now();
     var formatter = new DateFormat('yyyy-MM-dd');
     String date = formatter.format(now);
-    writeHistory('$inputs', '$thumbnailPath', '$date', '${file.lengthSync()}', '$customPath/$fileName${fileType[fileTypeId]}');
-
+    writeHistory('$inputs', '$thumbnailPath', '$date', '${isAudioOnly? size.totalBytes :(size.totalBytes/2).floor()}', '$customPath/$fileName${fileType[fileTypeId]}');
+    _timer.cancel();
+    if(isAudioOnly){
+      // setRes('Done!');
+    } else {
+      setRes('Combine...');
+    }
     setState(() {
-      res = 'Done!';
       _counter++;
       isProgressing = false;
-    });}
+      percent = 100;
+    });
+    
+    }
     catch(e){
       setRes('Error');
+      _timer.cancel();
       setState(() {
       isProgressing = false;
+      percent = 0;
       });
       showDialog(context: context, builder: (BuildContext context){
       return CupertinoAlertDialog(
@@ -190,30 +262,37 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     }
   }
-  
-  Future<void> _downloadAudio() async {
-    try{
-    // var path = await _localPath;
-    storagePermission();
-    var path = _rootPath;
-    inputs = _cleanURL(inputs);
-    setState(() {
-      res = 'Starting...';
-      isProgressing = true;
-      thumbnailPath = 'https://img.youtube.com/vi/$inputs/0.jpg';
+  void getPercent() {
+    _timer = Timer.periodic(Duration(milliseconds: 10), (timer) async {
+      if(isAudioOnly){
+        int nowSize = File('$customPath/$fileName${fileType[fileTypeId]}').lengthSync();
+        setState(() {
+          percent = nowSize/size.totalBytes;
+        });
+      } else {
+        var tempDir = await getExternalStorageDirectory();
+        var tempPath = tempDir.path;
+        int nowSize = File('$tempPath/$fileName.mp4').lengthSync() + File('$tempPath/$fileName.m4a').lengthSync() + File('$customPath/$fileName${fileType[fileTypeId]}').lengthSync();
+        if(nowSize/size.totalBytes<1){
+        setState(() {
+          percent = nowSize/size.totalBytes;
+          // percent = 0;
+        });
+        } else {
+          percent = 1;
+        }
+      }
     });
-    setRes('Loading Video Info...');
-    var manifest = await yt.videos.streamsClient.getManifest('$inputs');
-    setRes('Get Metadata...');
-    var streamInfo = manifest.audioOnly.withHighestBitrate();
-    
+  }
+  Future<void> writeStream(var streamInfo, String path) async {
     if (streamInfo != null) {
       setRes('Get the actual stream...');
       var stream = yt.videos.streamsClient.get(streamInfo);
       
       setRes('Creating a file...');
-      var file = File('$customPath/$fileName${fileType[fileTypeId]}');
+      var file = File('$path');
       var fileStream = file.openWrite();
+      getPercent();
       setRes('Writing on the file...');
       // Pipe all the content of the stream into the file.
       await stream.pipe(fileStream);
@@ -222,47 +301,23 @@ class _MyHomePageState extends State<MyHomePage> {
       await fileStream.flush();
       setRes('Closing the file...');
       await fileStream.close();
-    }
-    var myDir = new Directory(await _localPath);
-    myDir.list(recursive: true, followLinks: false)
-    .listen((FileSystemEntity entity) {
-      print('My Log: ${entity.path}');
-    });
+      if (isAudioOnly){
+        setRes('Done!!');
+      }
 
-    var file = File('$customPath/$fileName${fileType[fileTypeId]}');
-    print('My Log: ${file.lengthSync()}');
-
-    setRes('Writing history');
-    initHistory();
-    var now = new DateTime.now();
-    var formatter = new DateFormat('yyyy-MM-dd');
-    String date = formatter.format(now);
-    writeHistory('$inputs', '$thumbnailPath', '$date', '${file.lengthSync()}', '$customPath/$fileName${fileType[fileTypeId]}');
-    setState(() {
-      res = 'Done!';
-      _counter++;
-      isProgressing = false;
-    });}
-    catch(e){
-      setRes('Error');
-      setState(() {
-      isProgressing = false;
-      });
-      showDialog(context: context, builder: (BuildContext context){
-      return CupertinoAlertDialog(
-        title: Text('Error', style: TextStyle(color: Colors.red),),
-        content: Text('$e\n앱을 재실행 해주세요!'),
-        actions: [
-          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
-        ],
-      );
-    });
     }
   }
-  void _m4a2mp3(String inputPath, String outputPath){
+  Future<void> _combineMP4andM4A(String inputAudioPath, String inputVideoPath, String outputPath) async{
+    new File('$outputPath').create(recursive: true);
+    setRes('Combine video and audio...');
     final FlutterFFmpeg _flutterFFmpeg = new FlutterFFmpeg();
-    String _args = '-i $inputPath $outputPath';
-    _flutterFFmpeg.execute('$_args');
+    String _args = '-y -i $inputVideoPath -i $inputAudioPath $outputPath';
+    _flutterFFmpeg.execute('$_args').then((value) async {
+      setState(() {
+        res = 'Done!!';
+      });
+      _timer.cancel();
+    });
   }
   Future<void> _fileTest() async{
     storagePermission();
@@ -327,9 +382,11 @@ class _MyHomePageState extends State<MyHomePage> {
       context: context, builder: (BuildContext context) {
       return Wrap(
         children: <Widget>[
-          Container(
-            height: 240,
-            child: CupertinoPicker(
+          Column(
+            children: <Widget>[
+              Container(
+              height: 240,
+              child: CupertinoPicker(
                     backgroundColor: Colors.white,
                     onSelectedItemChanged: (value) {
                       setState(() {
@@ -366,6 +423,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           ],
                         ),
                       ),
+
                       Container(
                         padding: EdgeInsets.fromLTRB(30,0,30,0),
                         child: Row(
@@ -377,7 +435,15 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       ]
                   ),
-          ),
+                  ),
+                  CupertinoButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    
+                    padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                    child: Text('선택완료'),
+                  )]),
           
                   ]
                   )
@@ -423,21 +489,22 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Container(
-                  width: (fullw)*0.3,
-                  child: Text(
-                  'Url',
-                  style: TextStyle(fontSize: 20),
-                  textAlign: TextAlign.center,           
-                  ),
-                ),
+                // Container(
+                //   width: (fullw)*0.3,
+                //   child: Text(
+                //   'Url',
+                //   style: TextStyle(fontSize: 20),
+                //   textAlign: TextAlign.center,           
+                //   ),
+                // ),
                 
                 Container(
-                  width: (fullw)*0.7,
-                  child: TextField(
-                    style: TextStyle(fontSize: 20, color: Colors.red),
+                  width: (fullw),
+                  child: CupertinoTextField(
+                    style: TextStyle(fontSize: 20, color: Colors.orange),
                     textAlign: TextAlign.left,
-                    decoration: InputDecoration(hintText: '링크 입력'),
+                    // decoration: InputDecoration(hintText: '링크 입력'),
+                    placeholder: '링크를 입력하세요!',
                     onChanged: (String str) {
                       setState(() => inputs = str);
                       },
@@ -449,21 +516,22 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Container(
-                  width: (fullw)*0.3,
-                  child: Text(
-                  '파일이름',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 20),                
-                  ),
-                ),
+                // Container(
+                //   width: (fullw)*0.3,
+                //   child: Text(
+                //   '파일이름',
+                //   textAlign: TextAlign.center,
+                //   style: TextStyle(fontSize: 20),                
+                //   ),
+                // ),
                 
                 Container(
-                  width: (fullw)*0.4,
-                  child: TextField(
-                    style: TextStyle(fontSize: 20, color: Colors.red),
+                  width: (fullw)*0.7,
+                  child: CupertinoTextField(
+                    style: TextStyle(fontSize: 20, color: Colors.orange),
                     textAlign: TextAlign.left,
-                    decoration: InputDecoration(hintText: '파일이름 입력'),
+                    // decoration: InputDecoration(hintText: '파일이름 입력'),
+                    placeholder: '파일이름을 입력하세요!',
                     onChanged: (String str) {
                       setState(() => fileName = str);
                       },
@@ -474,12 +542,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   width: (fullw)*0.3,
                   child: CupertinoButton(
                     onPressed: showPicker,
-                    color: Colors.orange,
+                    // color: Colors.orange,
                     borderRadius: BorderRadius.circular(30.0),
                     padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
                     child:
                         // Icon(Icons.text_fields),
-                        Text('${fileType[fileTypeId]}', textAlign: TextAlign.center,style: TextStyle(color: Colors.white),
+                        Text('${fileType[fileTypeId]}', textAlign: TextAlign.center,style: TextStyle(color: Colors.orange),
                         )
                   ),
                 )
@@ -509,7 +577,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: Center(
                   child: Row(
                   children: [
-                    Icon(CupertinoIcons.doc, color: Colors.white,),
+                    Icon(CupertinoIcons.folder_open, color: Colors.white,),
                     Text(' 다운로드 경로 설정하기', style: TextStyle(color: Colors.white))
                   ],
                   ),
@@ -518,8 +586,20 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(
               '저장경로: $customPath/$fileName${fileType[fileTypeId]}'.replaceAll('$_rootPath', ''),
             ),
-            Text(
-              '영상제목: $videoTitle'
+            Container(
+              padding: EdgeInsets.all(10),
+              child: LinearPercentIndicator(
+                  width: fullw*0.8,
+                  animation: false,
+                  // animationDuration: 1000,
+                  lineHeight: 30.0,
+                  leading: Padding(padding: EdgeInsets.fromLTRB(fullw*0.1, 0, 0, 0),),
+                  trailing: Padding(padding: EdgeInsets.fromLTRB(0, 0, fullw*0.1, 0),),
+                  percent: (percent<1.0)? percent : 1.0,
+                  // center: Text('${(((percent*1000).floor())/10)<1? ((percent*1000).floor())/10:100.0}%', style: TextStyle(color: Colors.white),),
+                  linearStrokeCap: LinearStrokeCap.roundAll,
+                  progressColor: Colors.orange,
+                ),
             ),
             Text(
               '$res',
@@ -545,27 +625,9 @@ class _MyHomePageState extends State<MyHomePage> {
             Padding(padding: EdgeInsets.all(15)),
             Row(children: [
               Padding(padding: EdgeInsets.fromLTRB((med.size.width)*0.05, 0, 0, 0)),
-              Container(
-              width: fullw*0.45,
-              child: CupertinoButton(
-              // onPressed: _fileTest,
-              // onPressed: _showError,
-              onPressed: goShare,
-              color: Colors.orange,
-              borderRadius: BorderRadius.circular(30.0),
-              padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
-              child: Center(child: Row(
-                children: <Widget>[
-                Icon(CupertinoIcons.share, color: Colors.white,),
-                Text(" 공유하기!", textAlign: TextAlign.center,style: TextStyle(color: Colors.white),),
-                ]
-              )
-              )
-              
-            ),),
-            Padding(padding: EdgeInsets.all(fullw*0.05)),
+            // Padding(padding: EdgeInsets.all(fullw*0.05)),
             Container(
-              width: fullw*0.45,
+              width: fullw,
               child: CupertinoButton(
               // onPressed: _fileTest,
               // onPressed: _showError,
@@ -575,7 +637,7 @@ class _MyHomePageState extends State<MyHomePage> {
               padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
               child: Center(child: Row(
                 children: <Widget>[
-                Icon(CupertinoIcons.folder_open, color: Colors.white,),
+                Icon(CupertinoIcons.play, color: Colors.white,),
                 Text(" 파일열기!", textAlign: TextAlign.center,style: TextStyle(color: Colors.white),),
                 ]
               )

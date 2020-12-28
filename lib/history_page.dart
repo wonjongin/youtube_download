@@ -95,7 +95,7 @@ class HistoryPageState extends State<HistoryPage> {
       itemCount: historyData.length,
       itemBuilder: (BuildContext context, int index){
         // if(index.isOdd) return Divider();
-        return _eachHistory(historyData[index]); //히스토리개수랑 객체 받아야함
+        return _eachHistory(historyData[historyData.length-index-1]); //히스토리개수랑 객체 받아야함
       }
       );
   }

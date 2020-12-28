@@ -39,6 +39,7 @@ dependencies:
   flutter_launcher_icons: ^0.7.3
   intl: ^0.16.1
   flutter_statusbarcolor: ^0.2.3
+  percent_indicator: ^2.1.9
 
 flutter_icons:
   android: true
