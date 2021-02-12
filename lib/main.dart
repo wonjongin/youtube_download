@@ -166,8 +166,6 @@ class _MyHomePageState extends State<MyHomePage> {
       isProgressing = true;
       thumbnailPath = 'https://img.youtube.com/vi/$inputs/0.jpg';
     });
-    
-    
  
     File('$customPath/$fileName${fileType[fileTypeId]}').delete();
     setRes('Loading Video Info...');
@@ -213,8 +211,7 @@ class _MyHomePageState extends State<MyHomePage> {
       
     }
    
-    
-    
+  
     var myDir = new Directory(await _localPath);
     myDir.list(recursive: true, followLinks: false)
     .listen((FileSystemEntity entity) {
@@ -308,16 +305,20 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
   Future<void> _combineMP4andM4A(String inputAudioPath, String inputVideoPath, String outputPath) async{
-    new File('$outputPath').create(recursive: true);
-    setRes('Combine video and audio...');
+    try{
+    // new File('$outputPath').create(recursive: true);
+    setRes('Combining...');
     final FlutterFFmpeg _flutterFFmpeg = new FlutterFFmpeg();
-    String _args = '-y -i $inputVideoPath -i $inputAudioPath $outputPath';
-    _flutterFFmpeg.execute('$_args').then((value) async {
+    List<String> _args = ['-y', '-i', '$inputVideoPath', '-i', '$inputAudioPath', '$outputPath'];
+    await _flutterFFmpeg.executeWithArguments(_args).then((value) async {
       setState(() {
         res = 'Done!!';
       });
       _timer.cancel();
     });
+    } catch(e) {
+      _showErrorWithMsg(e.toString());
+    }
   }
   Future<void> _fileTest() async{
     storagePermission();
@@ -456,6 +457,17 @@ class _MyHomePageState extends State<MyHomePage> {
       return CupertinoAlertDialog(
         title: Text('Error', style: TextStyle(color: Colors.red),),
         content: Text('에러가 발생했습니다.\n모든 칸을 채웠는지 확인해 주시고\n그래도 문제가 있다면 앱을 재실행 해주세요!'),
+        actions: [
+          FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
+        ],
+      );
+    });
+  }
+  void _showErrorWithMsg(String msg) {
+    showDialog(context: context, builder: (BuildContext context){
+      return CupertinoAlertDialog(
+        title: Text('Error', style: TextStyle(color: Colors.red),),
+        content: Text('에러가 발생했습니다.\n$msg'),
         actions: [
           FlatButton(onPressed:(){Navigator.pop(context);} , child: Text('닫기'))
         ],
